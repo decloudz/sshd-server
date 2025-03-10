@@ -20,6 +20,9 @@ on:
       - v[0-9]+.[0-9]+.[0-9]+*
   pull_request:
 
+env:
+  BUILDX_NO_DEFAULT_ATTESTATIONS: 1  # Disable default attestations to speed up build
+
 permissions:
   id-token: write   # Required for OIDC
   contents: read    # This is required for actions/checkout
@@ -92,19 +95,37 @@ jobs:
           cache-from: type=gha
           load: true
           tags: ${{ steps.image_name.outputs.image_name }}:test
+          # Build only for the current architecture for testing
+          platforms: linux/amd64
 
       - name: Test
         run: |
           make _ci_test
 
-      - name: Build and Push
-        uses: docker/build-push-action@v3
+      # For PR builds, only build for amd64 to speed up the process
+      - name: Build and Push (PR)
+        if: github.event_name == 'pull_request'
+        uses: docker/build-push-action@v4
         with:
           builder: ${{ steps.buildx.outputs.name }}
           context: .
-          push: ${{ github.event_name != 'pull_request' }}
+          push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64,linux/arm/v6,linux/arm/v7
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      # For main branch and tag builds, build for all platforms
+      - name: Build and Push (main/tags)
+        if: github.event_name != 'pull_request'
+        uses: docker/build-push-action@v4
+        with:
+          builder: ${{ steps.buildx.outputs.name }}
+          context: .
+          push: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
