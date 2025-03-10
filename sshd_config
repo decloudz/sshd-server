@@ -1,0 +1,21 @@
+Port 2222
+HostKey /etc/ssh/ssh_host_rsa_key
+HostKey /etc/ssh/ssh_host_ecdsa_key
+HostKey /etc/ssh/ssh_host_ed25519_key
+
+# Authentication settings
+PermitRootLogin no
+PubkeyAuthentication yes
+PasswordAuthentication yes
+AuthorizedKeysFile /etc/ssh/authorized_keys/%u
+
+# Enable SFTP
+Subsystem sftp internal-sftp
+
+# Allow TCP forwarding
+AllowTcpForwarding yes
+GatewayPorts yes
+
+# Logging
+SyslogFacility AUTH
+LogLevel INFO 
