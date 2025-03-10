@@ -29,14 +29,25 @@ RUN microdnf -y update && \
     sed -i 's/#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
     echo "AuthorizedKeysFile .ssh/authorized_keys /etc/ssh/authorized_keys/%u" >> /etc/ssh/sshd_config && \
     echo "Port 2222" >> /etc/ssh/sshd_config && \
-    # Set sshd to create keys on first start if they don't exist
-    echo "#!/bin/sh" > /usr/local/bin/entrypoint.sh && \
-    echo "# Generate host keys if not present" >> /usr/local/bin/entrypoint.sh && \
-    echo "ssh-keygen -A" >> /usr/local/bin/entrypoint.sh && \
+    echo "StrictModes no" >> /etc/ssh/sshd_config && \
+    echo "PidFile /var/lib/sshd/sshd.pid" >> /etc/ssh/sshd_config && \
+    # Generate host keys during build to avoid permission issues at runtime
+    ssh-keygen -A && \
+    # Set sshd to handle startup gracefully
+    echo "#!/bin/bash" > /usr/local/bin/entrypoint.sh && \
+    echo "set -e" >> /usr/local/bin/entrypoint.sh && \
     echo "# Fix permissions for OpenShift arbitrary UID" >> /usr/local/bin/entrypoint.sh && \
+    echo "if [ ! -d /var/lib/sshd/.ssh ]; then" >> /usr/local/bin/entrypoint.sh && \
+    echo "  mkdir -p /var/lib/sshd/.ssh" >> /usr/local/bin/entrypoint.sh && \
+    echo "  chmod 700 /var/lib/sshd/.ssh" >> /usr/local/bin/entrypoint.sh && \
+    echo "fi" >> /usr/local/bin/entrypoint.sh && \
+    echo "# Copy SSH host keys from cache if needed" >> /usr/local/bin/entrypoint.sh && \
+    echo "if [ ! -f /etc/ssh/ssh_host_rsa_key ]; then" >> /usr/local/bin/entrypoint.sh && \
+    echo "  cp -rf /etc/ssh.cache/* /etc/ssh/" >> /usr/local/bin/entrypoint.sh && \
+    echo "fi" >> /usr/local/bin/entrypoint.sh && \
     echo "chmod -R 0775 /etc/ssh /var/run/sshd /etc/ssh/authorized_keys" >> /usr/local/bin/entrypoint.sh && \
-    echo "# Start SSH daemon" >> /usr/local/bin/entrypoint.sh && \
-    echo "exec \$@" >> /usr/local/bin/entrypoint.sh && \
+    echo "echo 'Starting SSH server on port 2222'" >> /usr/local/bin/entrypoint.sh && \
+    echo "exec \"\$@\"" >> /usr/local/bin/entrypoint.sh && \
     chmod +x /usr/local/bin/entrypoint.sh && \
     # Create SSH key cache to avoid issues with read-only filesystems
     cp -a /etc/ssh /etc/ssh.cache
@@ -48,7 +59,10 @@ EXPOSE 2222
 WORKDIR /var/lib/sshd
 
 # Set permissions for OpenShift arbitrary UID support
-RUN chmod -R 0775 /etc/ssh /var/run/sshd /etc/ssh.cache /usr/local/bin/entrypoint.sh
+RUN chmod -R 0775 /etc/ssh /var/run/sshd /etc/ssh.cache /usr/local/bin/entrypoint.sh && \
+    mkdir -p /var/lib/sshd/.ssh && \
+    chmod 700 /var/lib/sshd/.ssh && \
+    chown -R 1001:1001 /var/lib/sshd
 
 # Run container as non-root user
 USER 1001
