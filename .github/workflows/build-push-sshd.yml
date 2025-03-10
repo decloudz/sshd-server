@@ -1,5 +1,5 @@
-# Panubo build and push to Quay.io and ECR Public
-# This GH Action is intended for public docker images that package upstream applications/services (ie not for projects of Panubo's).
+# Build and push to GitHub Container Registry and Quay.io
+# This GH Action is intended for public docker images that package upstream applications/services.
 # For repos that build multiple repos use the multi-build-push.yml workflow.
 #
 # This workflow runs on pushes to "main", PRs (does not push) or matching git tags.
@@ -24,6 +24,8 @@ env:
   BUILDX_NO_DEFAULT_ATTESTATIONS: 1  # Disable default attestations to speed up build
   DOCKER_BUILDKIT: 1
   BUILDKIT_PROGRESS: plain
+  QUAY_REPO: alveo/sshd-server
+  GHCR_REPO: ${{ github.repository }}
 
 permissions:
   id-token: write   # Required for OIDC
@@ -49,8 +51,8 @@ jobs:
         with:
           # list of Docker images to use as base name for tags
           images: |
-            quay.io/${{ steps.image_name.outputs.image_name }}
-            ghcr.io/${{ github.repository }}
+            quay.io/${{ env.QUAY_REPO }}
+            ghcr.io/${{ env.GHCR_REPO }}
           # generate Docker tags based on the following events/attributes
           tags: |
             # type=schedule
@@ -101,7 +103,7 @@ jobs:
           context: .
           cache-from: type=gha
           load: true
-          tags: ${{ steps.image_name.outputs.image_name }}:test
+          tags: ${{ env.QUAY_REPO }}:test
           # Build only for the current architecture for testing
           platforms: linux/amd64
           # Aggressive output configuration to speed up builds
