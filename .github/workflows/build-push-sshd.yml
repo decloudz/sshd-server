@@ -22,6 +22,8 @@ on:
 
 env:
   BUILDX_NO_DEFAULT_ATTESTATIONS: 1  # Disable default attestations to speed up build
+  DOCKER_BUILDKIT: 1
+  BUILDKIT_PROGRESS: plain
 
 permissions:
   id-token: write   # Required for OIDC
@@ -65,6 +67,11 @@ jobs:
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@v2
+        with:
+          buildkitd-flags: --debug
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
 
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
@@ -87,7 +94,7 @@ jobs:
         with:
           bats-version: 1.7.0
 
-      - name: Build and export to Docker
+      - name: Build and export to Docker for testing
         uses: docker/build-push-action@v4
         with:
           builder: ${{ steps.buildx.outputs.name }}
@@ -97,9 +104,13 @@ jobs:
           tags: ${{ steps.image_name.outputs.image_name }}:test
           # Build only for the current architecture for testing
           platforms: linux/amd64
+          # Aggressive output configuration to speed up builds
+          outputs: type=docker,dest=/tmp/test-image.tar
+          provenance: false
 
       - name: Test
         run: |
+          docker load < /tmp/test-image.tar
           make _ci_test
 
       # For PR builds, only build for amd64 to speed up the process
@@ -115,6 +126,8 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
+          outputs: type=image,push=false
 
       # For main branch and tag builds, build for all platforms
       - name: Build and Push (main/tags)
@@ -126,6 +139,7 @@ jobs:
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
