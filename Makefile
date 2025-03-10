@@ -3,6 +3,7 @@ TAG := latest
 QUAY_IMAGE := quay.io/alveo/$(NAME)
 GHCR_IMAGE := ghcr.io/decloudz/$(NAME)
 IMAGE_NAME := $(QUAY_IMAGE)
+TEST_IMAGE ?= sshd-server:test  # Default, can be overridden with env var
 
 .PHONY: *
 
@@ -37,9 +38,10 @@ clean: ## Remove built images
 
 _ci_test:
 	@echo "Running basic container tests..."
-	docker inspect $(QUAY_IMAGE):test > /dev/null || docker inspect alveo/sshd-server:test > /dev/null
+	@echo "Testing image: $(TEST_IMAGE)"
+	docker inspect $(TEST_IMAGE) > /dev/null || (echo "Error: Test image $(TEST_IMAGE) not found" && exit 1)
 	@echo "Verifying SSH daemon starts properly..."
-	docker run --rm -d --name sshd-server-test $(QUAY_IMAGE):test || docker run --rm -d --name sshd-server-test alveo/sshd-server:test
+	docker run --rm -d --name sshd-server-test $(TEST_IMAGE)
 	@sleep 2
 	docker logs sshd-server-test | grep -q "Server listening" || docker logs sshd-server-test
 	docker stop sshd-server-test

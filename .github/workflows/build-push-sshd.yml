@@ -26,6 +26,7 @@ env:
   BUILDKIT_PROGRESS: plain
   QUAY_REPO: alveo/sshd-server
   GHCR_REPO: ${{ github.repository }}
+  TEST_IMAGE: sshd-server:test  # Simplified test image name
 
 permissions:
   id-token: write   # Required for OIDC
@@ -103,7 +104,7 @@ jobs:
           context: .
           cache-from: type=gha
           load: true
-          tags: ${{ env.QUAY_REPO }}:test
+          tags: ${{ env.TEST_IMAGE }}
           # Build only for the current architecture for testing
           platforms: linux/amd64
           # Aggressive output configuration to speed up builds
@@ -113,7 +114,7 @@ jobs:
       - name: Test
         run: |
           docker load < /tmp/test-image.tar
-          make _ci_test
+          DOCKER_TEST_TAG=${{ env.TEST_IMAGE }} make _ci_test
 
       # For PR builds, only build for amd64 to speed up the process
       - name: Build and Push (PR)
